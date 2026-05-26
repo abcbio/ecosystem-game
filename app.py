@@ -1,97 +1,167 @@
 import streamlit as st
-from ecosystem_logic import *
+import time
 
-st.set_page_config(page_title="Ecosystem Game")
+# ------------------------
+# Constants
+# ------------------------
+MAX_BOTTOM = 12
+MAX_BIRDS = 12
 
-# -------------------
-# INITIAL STATE
-# -------------------
+TREE_O2, LAKE_O2, DINO_O2, BIRD_O2 = 0.8, 0.5, -1.0, -0.4
+DINO_CO2, BIRD_CO2, TREE_CO2, LAKE_CO2 = 1.2, 0.4, -0.8, -0.5
 
-if "oxygen" not in st.session_state:
+ROUND_DURATION = 20
 
+# ------------------------
+# Session state init
+# ------------------------
+def init():
     st.session_state.oxygen = 50
     st.session_state.co2 = 40
-    st.session_state.biodiversity = 0.0
+    st.session_state.trees = 0
+    st.session_state.lakes = 0
+    st.session_state.dinos = 0
+    st.session_state.birds = 0
+    st.session_state.running = False
+    st.session_state.start_time = None
+    st.session_state.leaderboard = []
 
-    st.session_state.bottom = [EMPTY] * MAX_BOTTOM_PATCHES
-    st.session_state.birds = [EMPTY] * MAX_BIRD_PATCHES
+if "oxygen" not in st.session_state:
+    init()
 
-# -------------------
-# TITLE
-# -------------------
-
+# ------------------------
+# Title
+# ------------------------
 st.title("🌍 Ecosystem Game")
 
-# -------------------
-# METRICS
-# -------------------
+# ------------------------
+# Start button
+# ------------------------
+if st.button("▶ START GAME"):
+    init()
+    st.session_state.running = True
+    st.session_state.start_time = time.time()
 
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Oxygen", int(st.session_state.oxygen))
-col2.metric("CO2", int(st.session_state.co2))
-col3.metric(
-    "Biodiversity",
-    f"{st.session_state.biodiversity*100:.1f}%"
-)
-
-# -------------------
-# BUTTONS
-# -------------------
-
-st.subheader("Add Organisms")
+# ------------------------
+# Controls
+# ------------------------
+st.subheader("Controls")
 
 c1, c2, c3, c4 = st.columns(4)
 
-if c1.button("🌳 Tree"):
-    for i in range(MAX_BOTTOM_PATCHES):
-        if st.session_state.bottom[i] == EMPTY:
-            st.session_state.bottom[i] = TREE
-            break
+# Trees
+with c1:
+    st.write("🌳 Trees")
+    if st.button("+", key="t+"):
+        st.session_state.trees = min(MAX_BOTTOM, st.session_state.trees + 1)
+    if st.button("-", key="t-"):
+        st.session_state.trees = max(0, st.session_state.trees - 1)
 
-if c2.button("💧 Lake"):
-    for i in range(MAX_BOTTOM_PATCHES):
-        if st.session_state.bottom[i] == EMPTY:
-            st.session_state.bottom[i] = LAKE
-            break
+# Lakes
+with c2:
+    st.write("💧 Lakes")
+    if st.button("+", key="l+"):
+        st.session_state.lakes = min(MAX_BOTTOM, st.session_state.lakes + 1)
+    if st.button("-", key="l-"):
+        st.session_state.lakes = max(0, st.session_state.lakes - 1)
 
-if c3.button("🦖 Dino"):
-    for i in range(MAX_BOTTOM_PATCHES):
-        if st.session_state.bottom[i] == EMPTY:
-            st.session_state.bottom[i] = DINO
-            break
+# Dinos
+with c3:
+    st.write("🦖 Dinos")
+    if st.button("+", key="d+"):
+        st.session_state.dinos = min(MAX_BOTTOM, st.session_state.dinos + 1)
+    if st.button("-", key="d-"):
+        st.session_state.dinos = max(0, st.session_state.dinos - 1)
 
-if c4.button("🦅 Bird"):
-    for i in range(MAX_BIRD_PATCHES):
-        if st.session_state.birds[i] == EMPTY:
-            st.session_state.birds[i] = BIRD
-            break
+# Birds
+with c4:
+    st.write("🐦 Birds")
+    if st.button("+", key="b+"):
+        st.session_state.birds = min(MAX_BIRDS, st.session_state.birds + 1)
+    if st.button("-", key="b-"):
+        st.session_state.birds = max(0, st.session_state.birds - 1)
 
-# -------------------
-# UPDATE BUTTON
-# -------------------
+# ------------------------
+# Game update
+# ------------------------
+if st.session_state.running:
+    elapsed = time.time() - st.session_state.start_time
+    remaining = max(0, int(ROUND_DURATION - elapsed))
 
-if st.button("Run Simulation Step"):
-    state = {
-        "oxygen": st.session_state.oxygen,
-        "co2": st.session_state.co2,
-        "biodiversity": st.session_state.biodiversity,
-        "bottom": st.session_state.bottom,
-        "birds": st.session_state.birds,
-    }
+    # Update gases
+    st.session_state.oxygen += (
+        st.session_state.trees * TREE_O2 +
+        st.session_state.lakes * LAKE_O2 +
+        st.session_state.dinos * DINO_O2 +
+        st.session_state.birds * BIRD_O2
+    )
 
-    state = update_ecosystem(state)
+    st.session_state.co2 += (
+        st.session_state.dinos * DINO_CO2 +
+        st.session_state.birds * BIRD_CO2 +
+        st.session_state.trees * TREE_CO2 +
+        st.session_state.lakes * LAKE_CO2
+    )
 
-    st.session_state.oxygen = state["oxygen"]
-    st.session_state.co2 = state["co2"]
-    st.session_state.biodiversity = state["biodiversity"]
+    # Clamp values
+    st.session_state.oxygen = max(0, min(100, st.session_state.oxygen))
+    st.session_state.co2 = max(0, min(100, st.session_state.co2))
 
-# -------------------
-# SHOW ECOSYSTEM
-# -------------------
+    # Death conditions
+    if st.session_state.oxygen < 10 or st.session_state.co2 > 80:
+        st.session_state.dinos = max(0, st.session_state.dinos - 1)
 
-st.subheader("Bottom Layer")
-st.write(st.session_state.bottom)
+    if st.session_state.oxygen < 20 or st.session_state.co2 > 60:
+        st.session_state.birds = max(0, st.session_state.birds - 1)
 
-st.subheader("Bird Layer")
-st.write(st.session_state.birds)
+    biodiversity = (st.session_state.birds + st.session_state.dinos) / (MAX_BIRDS + MAX_BOTTOM)
+
+    # ------------------------
+    # Display
+    # ------------------------
+    st.subheader("Game State")
+
+    st.write(f"⏱ Time left: {remaining}s")
+    st.progress(int(st.session_state.oxygen), text=f"Oxygen: {int(st.session_state.oxygen)}")
+    st.progress(int(st.session_state.co2), text=f"CO₂: {int(st.session_state.co2)}")
+    st.metric("🌱 Biodiversity", f"{biodiversity*100:.1f}%")
+
+    # ------------------------
+    # Patch grid (visual)
+    # ------------------------
+    st.subheader("Ecosystem")
+
+    bottom = (
+        ["🌳"] * st.session_state.trees +
+        ["💧"] * st.session_state.lakes +
+        ["🦖"] * st.session_state.dinos
+    )
+    birds = ["🐦"] * st.session_state.birds
+
+    st.write("Ground layer:")
+    st.write(" ".join(bottom) if bottom else "Empty")
+
+    st.write("Sky layer:")
+    st.write(" ".join(birds) if birds else "Empty")
+
+    # ------------------------
+    # End game
+    # ------------------------
+    if remaining <= 0:
+        st.session_state.running = False
+        st.success("✅ Round finished!")
+
+        name = st.text_input("Enter your name")
+
+        if st.button("Save score"):
+            st.session_state.leaderboard.append((name or "NoName", biodiversity))
+            st.session_state.leaderboard.sort(key=lambda x: x[1], reverse=True)
+
+# ------------------------
+# Leaderboard
+# ------------------------
+st.subheader("🏆 Leaderboard")
+
+for i, (n, b) in enumerate(st.session_state.leaderboard[:10]):
+    st.write(f"{i+1}. {n} — {b*100:.1f}%")
+``
