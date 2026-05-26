@@ -13,17 +13,18 @@ DINO_CO2, BIRD_CO2, TREE_CO2, LAKE_CO2 = 1.2, 0.4, -0.8, -0.5
 ROUND_DURATION = 20
 
 # ------------------------
-# Session state init
+# Init session state
 # ------------------------
 def init():
-    st.session_state.oxygen = 50
-    st.session_state.co2 = 40
+    st.session_state.oxygen = 50.0
+    st.session_state.co2 = 40.0
     st.session_state.trees = 0
     st.session_state.lakes = 0
     st.session_state.dinos = 0
     st.session_state.birds = 0
     st.session_state.running = False
     st.session_state.start_time = None
+    st.session_state.last_update = None
     st.session_state.leaderboard = []
     st.session_state.name_input = ""
 
@@ -36,12 +37,13 @@ if "oxygen" not in st.session_state:
 st.title("🌍 Ecosystem Game")
 
 # ------------------------
-# Start button
+# Start
 # ------------------------
 if st.button("▶ START GAME"):
     init()
     st.session_state.running = True
     st.session_state.start_time = time.time()
+    st.session_state.last_update = time.time()
 
 # ------------------------
 # Controls
@@ -50,7 +52,6 @@ st.subheader("Controls")
 
 c1, c2, c3, c4 = st.columns(4)
 
-# Trees
 with c1:
     st.write("🌳 Trees")
     if st.button("+", key="t_plus"):
@@ -58,7 +59,6 @@ with c1:
     if st.button("-", key="t_minus"):
         st.session_state.trees = max(0, st.session_state.trees - 1)
 
-# Lakes
 with c2:
     st.write("💧 Lakes")
     if st.button("+", key="l_plus"):
@@ -66,7 +66,6 @@ with c2:
     if st.button("-", key="l_minus"):
         st.session_state.lakes = max(0, st.session_state.lakes - 1)
 
-# Dinos
 with c3:
     st.write("🦖 Dinos")
     if st.button("+", key="d_plus"):
@@ -74,7 +73,6 @@ with c3:
     if st.button("-", key="d_minus"):
         st.session_state.dinos = max(0, st.session_state.dinos - 1)
 
-# Birds
 with c4:
     st.write("🐦 Birds")
     if st.button("+", key="b_plus"):
@@ -83,45 +81,50 @@ with c4:
         st.session_state.birds = max(0, st.session_state.birds - 1)
 
 # ------------------------
-# Game update
+# Game logic
 # ------------------------
 if st.session_state.running:
 
-    elapsed = time.time() - st.session_state.start_time
+    now = time.time()
+    elapsed = now - st.session_state.start_time
     remaining = max(0, int(ROUND_DURATION - elapsed))
 
-    # Update gases
-    st.session_state.oxygen += (
-        st.session_state.trees * TREE_O2 +
-        st.session_state.lakes * LAKE_O2 +
-        st.session_state.dinos * DINO_O2 +
-        st.session_state.birds * BIRD_O2
-    )
+    # ✅ Update once per second
+    if now - st.session_state.last_update >= 1:
 
-    st.session_state.co2 += (
-        st.session_state.dinos * DINO_CO2 +
-        st.session_state.birds * BIRD_CO2 +
-        st.session_state.trees * TREE_CO2 +
-        st.session_state.lakes * LAKE_CO2
-    )
+        st.session_state.oxygen += (
+            st.session_state.trees * TREE_O2 +
+            st.session_state.lakes * LAKE_O2 +
+            st.session_state.dinos * DINO_O2 +
+            st.session_state.birds * BIRD_O2
+        )
 
-    # Clamp values
-    st.session_state.oxygen = max(0, min(100, st.session_state.oxygen))
-    st.session_state.co2 = max(0, min(100, st.session_state.co2))
+        st.session_state.co2 += (
+            st.session_state.dinos * DINO_CO2 +
+            st.session_state.birds * BIRD_CO2 +
+            st.session_state.trees * TREE_CO2 +
+            st.session_state.lakes * LAKE_CO2
+        )
 
-    # Death conditions
-    if st.session_state.oxygen < 10 or st.session_state.co2 > 80:
-        st.session_state.dinos = max(0, st.session_state.dinos - 1)
+        # Clamp values
+        st.session_state.oxygen = max(0, min(100, st.session_state.oxygen))
+        st.session_state.co2 = max(0, min(100, st.session_state.co2))
 
-    if st.session_state.oxygen < 20 or st.session_state.co2 > 60:
-        st.session_state.birds = max(0, st.session_state.birds - 1)
+        # Death rules
+        if st.session_state.oxygen < 10 or st.session_state.co2 > 80:
+            st.session_state.dinos = max(0, st.session_state.dinos - 1)
+
+        if st.session_state.oxygen < 20 or st.session_state.co2 > 60:
+            st.session_state.birds = max(0, st.session_state.birds - 1)
+
+        st.session_state.last_update = now
 
     biodiversity = (
         st.session_state.birds + st.session_state.dinos
     ) / (MAX_BIRDS + MAX_BOTTOM)
 
     # ------------------------
-    # Display stats
+    # Display
     # ------------------------
     st.subheader("Game State")
 
@@ -136,7 +139,7 @@ if st.session_state.running:
     st.metric("🌱 Biodiversity", f"{biodiversity*100:.1f}%")
 
     # ------------------------
-    # Visual ecosystem
+    # Visual Ecosystem
     # ------------------------
     st.subheader("Ecosystem")
 
@@ -172,6 +175,10 @@ if st.session_state.running:
             st.session_state.leaderboard.sort(
                 key=lambda x: x[1], reverse=True
             )
+
+    # ✅ AUTO-REFRESH LOOP
+    time.sleep(1)
+    st.rerun()
 
 # ------------------------
 # Leaderboard
